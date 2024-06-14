@@ -144,7 +144,7 @@ fin_tab <-
     align = 'left'
   ) |> 
   cols_width(
-    vars(champs) ~ px(100)) |> 
+    vars(champs) ~ px(200)) |> 
   opt_table_font(font = google_font(name = 'Tomorrow'),
                  weight = 'bold') |> 
   tab_style(
