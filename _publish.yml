@@ -1,0 +1,4 @@
+- source: posit_table_contest.qmd
+  quarto-pub:
+    - id: 3b9adc9a-0672-4a47-a85c-2e07acb252cd
+      url: 'https://samrit.quarto.pub/indian-club-football-records'

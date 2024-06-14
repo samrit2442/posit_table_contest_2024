@@ -1,0 +1,197 @@
+pacman::p_load(rvest, tidyverse, gt, gtsummary, showtext, paletteer)
+
+# NFL Champions List ----
+
+url_1 <- "https://en.wikipedia.org/wiki/National_Football_League_(India)#Champions"
+
+nfl <- read_html(url_1)
+nfl_tab <- nfl |> 
+  html_nodes("table")
+
+# nfl_tab[[3]] |> html_table(fill = T)
+
+nfl_champ <- nfl_tab[[3]] |> 
+  html_table(fill = T)
+
+
+# I-League Champions List ----
+
+url_2 <- "https://en.wikipedia.org/wiki/I-League#Champions"
+
+il <- read_html(url_2)
+il_tab <- il |> 
+  html_nodes("table")
+
+# il_tab[[14]] |> html_table(fill = T)
+
+il_champ <- il_tab[[14]] |> 
+  html_table(fill = T)
+
+
+# ISL Champions List ----
+
+url_3 <- "https://en.wikipedia.org/wiki/Indian_Super_League#Championships"
+
+isl <- read_html(url_3)
+isl_tab <- isl |> 
+  html_nodes("table")
+
+# isl_tab[[8]] |> html_table(fill = T)
+
+isl_champ <- isl_tab[[8]] |> 
+  html_table(fill = T)
+
+
+
+# Combining all leagues ----
+
+nfl_champ2 <- nfl_champ[, 1:3] |> 
+  rename(Champions = `Champions(number of titles)[10]`) |> 
+  mutate(Champions = str_extract_all(Champions, "[a-zA-Z]+") |> 
+           sapply(paste, collapse = " "),
+         league_type = "NFL")
+  
+il_champ2 <- il_champ |> 
+  select(Season, Champions, `Runners-up`) |> 
+  mutate(Champions = str_extract_all(Champions, "[a-zA-Z]+") |> 
+           sapply(paste, collapse = " "),
+         league_type = "I-League")
+
+names(isl_champ) <- isl_champ[1,] |> as.vector()
+
+isl_champ2 <- isl_champ[7:11, 1:3] |> 
+  rename(Champions = `Champions[a](Number of titles)`,
+         `Runners-up` = `Second[b]`) |> 
+  mutate(Champions = str_extract_all(Champions, "[a-zA-Z]+") |> 
+           sapply(paste, collapse = " "),
+         league_type = "ISL")
+  
+all_champ <- rbind(nfl_champ2, il_champ2[-c(16, 17), ], isl_champ2)
+
+all_champ <- all_champ |> 
+  mutate(Champions = case_when(
+    Champions == "Mohun Bagan SG" ~ "Mohun Bagan",
+    .default = Champions))
+
+champ_sum <- all_champ |> 
+  group_by(Champions) |> 
+  tally() |>
+  arrange(desc(n)) |> 
+  mutate(champs = strrep("🏆", n)) |> 
+  select(-n) |> 
+  rename(Teams = Champions)
+
+champ_sum |> 
+  gt() |> 
+  opt_table_font(font = google_font(name = 'Open Sans'))
+
+icon <- tribble(
+  ~club, ~img,
+  'mb' , "https://upload.wikimedia.org/wikipedia/en/6/64/Mohun_Bagan_A.C._logo.svg",
+  'dmp' , "https://upload.wikimedia.org/wikipedia/en/8/8f/Dempo_Sports_Club.svg",
+  'eb' , "https://upload.wikimedia.org/wikipedia/en/b/b0/Official_East_Bengal_FC_Logo.svg",
+  'bfc' , "https://upload.wikimedia.org/wikipedia/en/5/52/Bengaluru_FC_logo.svg",
+  'cb' , "https://upload.wikimedia.org/wikipedia/en/2/2e/Churchill_Brothers.svg",
+  'gk' , "https://upload.wikimedia.org/wikipedia/en/c/c4/Gokulam_Kerala_FC.svg",
+  'mc' , "https://upload.wikimedia.org/wikipedia/en/6/68/Mumbai_City_FC_logo.svg",
+  'sal' , "https://upload.wikimedia.org/wikipedia/en/e/e7/Salgaocar_FC.svg",
+  'aiz' , "https://upload.wikimedia.org/wikipedia/en/4/43/Aizawl_Football_Club.svg",
+  'cc' , "https://upload.wikimedia.org/wikipedia/en/a/ac/Chennai_City_FC.svg",
+  'goa' , "https://upload.wikimedia.org/wikipedia/en/2/22/FC_Goa_logo.svg",
+  'jct' , "https://upload.wikimedia.org/wikipedia/en/6/60/JCT_FC_logo.svg",
+  'jfc' , "https://upload.wikimedia.org/wikipedia/en/5/57/Jamshedpur_FC_logo.svg",
+  'mu' , "https://upload.wikimedia.org/wikipedia/en/0/08/Mahindra_United_FC.svg",
+  'mp' , "https://upload.wikimedia.org/wikipedia/en/c/ca/Minerva_Academy_FC.svg"
+)
+
+estd <- c(1889, 1968, 1920, 2013, 1988, 2017, 2014, 1956, 1984, 1946,
+          2014, 1971, 2017, 1962, 2005)
+
+dom_cup <- c(109, 26, 110, 5, 14, 4, 2, 34, 4, 2, 2, 18, 0, 9, 2)
+
+champ_sum2 <- cbind(icon$img, champ_sum, estd, dom_cup) |> 
+  rename(img = `icon$img`)
+
+fin_tab <- 
+  champ_sum2 |> 
+  gt() |> 
+  text_transform(
+    locations = cells_body(img),
+    fn = function(x) {
+      web_image(url = x, height = px(55))
+    }
+  ) |> 
+  cols_align(
+    columns = c('Teams'),
+    align = 'left'
+  ) |> 
+  opt_table_font(font = google_font(name = 'Tomorrow'),
+                 weight = 'bold') |> 
+  tab_style(
+    style = cell_text(size = px(25)),
+    locations = cells_body()) |> 
+  cols_align(
+    columns = c('dom_cup', 'estd'),
+    align = 'center') |> 
+  text_transform(
+    locations = cells_body(columns = Teams),
+    fn = function(x) {
+      x <- gsub("Mohun", "<span style='color: #216a6b;'>Mohun</span>", x)
+      x <- gsub("Bagan", "<span style='color: #be0b28;'>Bagan</span>", x)
+      x <- gsub("Dempo", "<span style='color: #3262a0;'>Dempo</span>", x)
+      x <- gsub("East", "<span style='color: #e1071e;'>East</span>", x)
+      x <- gsub(" Bengal", "<span style='color: #f0dc09'> Bengal</span>", x)
+      x <- gsub("Bengaluru", "<span style='color: #29479f;'>Bengaluru FC</span>", x)
+      x <- gsub("Churchill", "<span style='color: #d82229;'>Churchill</span>", x)
+      x <- gsub("Brothers", "<span style='color: #110c0c;'>Brothers</span>", x)
+      x <- gsub("Gokulam", "<span style='color: #bd372f;'>Gokulam</span>", x)
+      x <- gsub("Kerala", "<span style='color: #21120e;'>Kerala</span>", x)
+      x <- gsub("Mumbai City", "<span style='color: #7aaad2;'>Mumbai City</span>", x)
+      x <- gsub("Salgaocar", "<span style='color: #195614;'>Salgaocar</span>", x)
+      x <- gsub("Aizawl", "<span style='color: #fa0e0e;'>Aizawl</span>", x)
+      x <- gsub("Chennai City", "<span style='color: #ef841e;'>Chennai City</span>", x)
+      x <- gsub("Goa", "<span style='color: #f17b2d;'>Goa</span>", x)
+      x <- gsub("JCT Mills", "<span style='color: #c2a035;'>JCT FC</span>", x)
+      x <- gsub("Jamshedpur", "<span style='color: #174f8b;'>Jamshedpur</span>", x)
+      x <- gsub("Mahindra United", "<span style='color: red;'>Mahindra United</span>", x)
+      x <- gsub("Minerva Punjab", "<span style='color: #07b2e0;'>Minerva Punjab</span>", x)
+      x
+    }
+  ) |> 
+  data_color(
+    columns = c(estd, dom_cup),
+    colors = scales::col_numeric(
+      palette = as.character(paletteer::paletteer_d("ggsci::blue_material", n = 5)),
+      domain = NULL)) |> 
+  tab_style(
+    style = list(cell_borders(
+      sides = "bottom",
+      color = "black",
+      weight = px(3))),
+    locations = list(
+      cells_column_labels(
+        columns = gt::everything()))) |> 
+  tab_style(
+    style=cell_text(
+      weight = 'bold',
+      size = px(15),
+      align = 'center'),
+    locations = cells_column_labels(gt::everything())) |> 
+  cols_label(
+    img = "",
+    Teams = "Clubs",
+    champs = "League Championships",
+    estd = "ESTD",
+    dom_cup = "Major Domestic Cup") |> 
+  tab_header(title = md("**Indian Football Club Records**"),
+             subtitle = html("Historical Data From  
+             <b style = 'color:#216a6b'>Mohun</b>
+             <b style = 'color:#be0b28'>Bagan's</b>
+             infamous IFA Shield Win in 1911, 
+             <b style = 'color:#c2a035'>JCT's </b> 
+             first NFL Win in 1996-97, to the 2023-24 ISL Season.")) |> 
+  tab_footnote(footnote = "The exact number might vary based on different sources
+               and the inclusion criteria for domestic cups.",
+               locations = cells_column_labels(columns = 5))
+
+fin_tab
